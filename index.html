@@ -284,6 +284,14 @@
         </div>
       </div>
     </div>
+    <div style="margin-top: 40px; text-align: left; max-width: 800px; background: rgba(255,255,255,0.05); padding: 24px; border-radius: 16px; border: 1px solid rgba(79,195,247,0.3);">
+      <h3 style="color: #4fc3f7; margin-bottom: 16px; font-size: 18px;">📖 模式介紹</h3>
+      <div style="color: #b0c4de; font-size: 14px; line-height: 1.8;">
+        <p style="margin-bottom: 12px;"><strong style="color: #fff;">🧩 編程模式</strong> — 學習無人機編程的入門模式。使用 Blockly 積木拖曳組合程式,控制無人機起飛、移動、轉向,完成 18 個精心設計的關卡。進階關卡還包含 AI 自動巡邏和感測器應用。</p>
+        <p style="margin-bottom: 12px;"><strong style="color: #fff;">🌃 無盡 Cyberpunk</strong> — 手動操控模式,體驗賽博龐克世界的刺激。使用 WASD 移動、滑鼠射擊紅球、收集金幣、閃避能量牆。5 個階段難度遞增,考驗你的反應和操控技巧。</p>
+        <p><strong style="color: #fff;">🏗️ 關卡設計</strong> — 發揮創意,自己設計關卡!在網格上放置障礙物、檢查點和寶物,設定起終點,然後生成關卡碼分享給同學挑戰。零成本分享,無需伺服器。</p>
+      </div>
+    </div>
     <div class="menu-footer">© Drone Lab · Powered by Babylon.js + Blockly</div>
   </div>
 </div>
@@ -2894,8 +2902,17 @@ function setupBuilderMode() {
   builderTarget = { gx: 4, gz: -3 };
   builderCheckpointIdx = 0;
   
-  // Clear existing meshes
+  // Clear existing level meshes (from programming mode)
+  rebuildObstacles([]);
+  rebuildCheckpoints([]);
+  rebuildTreasures([]);
+  
+  // Clear builder meshes
   builderClearMeshes();
+  
+  // Show start & target markers
+  rebuildBuilderStart();
+  rebuildBuilderTarget();
   
   // Build toolbar buttons
   buildBuilderToolbar();
@@ -2914,6 +2931,10 @@ function teardownBuilderMode() {
   builderActive = false;
   hideBuilderUI();
   builderClearMeshes();
+  // Clear builder-placed objects from scene
+  rebuildObstacles([]);
+  rebuildCheckpoints([]);
+  rebuildTreasures([]);
 }
 
 function buildBuilderToolbar() {
@@ -3079,18 +3100,27 @@ function eraseAt(gx, gz) {
   }
 }
 
+function disposeBuilderMeshes(type) {
+  builderMeshes.filter(m => m._builderType === type).forEach(m => {
+    if (m.getChildMeshes) m.getChildMeshes().forEach(c => {
+      if (c.material && c.material.diffuseTexture) { c.material.diffuseTexture.dispose(); }
+      if (c.material) c.material.dispose();
+      c.dispose();
+    });
+    m.dispose();
+  });
+  builderMeshes = builderMeshes.filter(m => m._builderType !== type);
+}
+
 function rebuildBuilderObstacles() {
-  // Clear old
-  builderMeshes.filter(m => m._builderType === 'obstacle').forEach(m => m.dispose());
-  builderMeshes = builderMeshes.filter(m => m._builderType !== 'obstacle');
-  
-  // Create new
+  disposeBuilderMeshes('obstacle');
+  const offset = Date.now() % 10000;
   builderObstacles.forEach((obs, idx) => {
     let mesh;
     if (obs.type === 'vase') {
-      mesh = createVase(obs.gx, obs.gz, idx);
+      mesh = createVase(obs.gx, obs.gz, offset + idx);
     } else {
-      mesh = createPlant(obs.gx, obs.gz, idx);
+      mesh = createPlant(obs.gx, obs.gz, offset + idx);
     }
     mesh._builderType = 'obstacle';
     builderMeshes.push(mesh);
@@ -3098,22 +3128,20 @@ function rebuildBuilderObstacles() {
 }
 
 function rebuildBuilderCheckpoints() {
-  builderMeshes.filter(m => m._builderType === 'checkpoint').forEach(m => m.dispose());
-  builderMeshes = builderMeshes.filter(m => m._builderType !== 'checkpoint');
-  
+  disposeBuilderMeshes('checkpoint');
+  const offset = Date.now() % 10000;
   builderCheckpoints.forEach((cp, idx) => {
-    const mesh = createCheckpoint(cp, idx);
+    const mesh = createCheckpoint(cp, offset + idx);
     mesh._builderType = 'checkpoint';
     builderMeshes.push(mesh);
   });
 }
 
 function rebuildBuilderTreasures() {
-  builderMeshes.filter(m => m._builderType === 'treasure').forEach(m => m.dispose());
-  builderMeshes = builderMeshes.filter(m => m._builderType !== 'treasure');
-  
+  disposeBuilderMeshes('treasure');
+  const offset = Date.now() % 10000;
   builderTreasures.forEach((t, idx) => {
-    const mesh = createTreasure(t, idx);
+    const mesh = createTreasure(t, offset + idx);
     mesh._builderType = 'treasure';
     builderMeshes.push(mesh);
   });
@@ -3318,7 +3346,11 @@ function importShareCode() {
   builderObstacles = data.o || [];
   builderCheckpoints = data.c || [];
   builderTreasures = data.tr || [];
-  builderCheckpointIdx = builderCheckpoints.length;
+  // Recalculate checkpoint index from max label
+  builderCheckpointIdx = builderCheckpoints.reduce((max, cp) => {
+    const code = cp.label ? cp.label.charCodeAt(0) - 64 : 0;
+    return code > max ? code : max;
+  }, 0);
   
   // Rebuild meshes
   builderClearMeshes();
