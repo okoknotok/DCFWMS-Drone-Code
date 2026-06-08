@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Drone Blockly - DCFWMS v3.4</title>
+<script src="https://cdn.babylonjs.com/babylon.js"</script>
+<script src="https://unpkg.com/blockly/blockly.min.js"</script>
+<script src="https://unpkg.com/blockly/msg/zh-hant.js"</script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="startMenu" class="show">
+  <div class="menu-content">
+    <div class="menu-emoji">🚁</div>
+    <h1 class="menu-title">DRONE LAB</h1>
+    <div class="menu-subtitle">無人機編程實驗室</div>
+    <div class="mode-cards">
+      <div class="mode-card programming" onclick="enterMode('programming')">
+        <span class="card-icon">🧩</span>
+        <h2>編程模式</h2>
+        <p>使用 Blockly 積木編程控制無人機,挑戰 18 個關卡(含 3 個 AI 自動駕駛大關)。</p>
+        <div class="card-features">
+          <span class="feature-tag">📘 18 關</span>
+          <span class="feature-tag">🧠 邏輯思維</span>
+          <span class="feature-tag">♾️ 自動巡邏</span>
+        </div>
+      </div>
+      <div class="mode-card freeflight" onclick="enterMode('freeflight')">
+        <span class="card-icon">🌃</span>
+        <h2>無盡 Cyberpunk</h2>
+        <p>5 階段越來越誇張的賽博龐克世界!射擊紅球、收集金幣、閃避能量牆,挑戰你的反應極限。</p>
+        <div class="card-features">
+          <span class="feature-tag">🌃 5 種場景</span>
+          <span class="feature-tag">💥 真實子彈</span>
+          <span class="feature-tag">🔥 越來越快</span>
+        </div>
+      </div>
+    </div>
+    <div class="menu-footer">© Drone Lab · Powered by Babylon.js + Blockly</div>
+  </div>
+</div>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="renderCanvas"></canvas>
+    
+    <button id="backToMenu" onclick="backToMenu()">🏠 返回選單</button>
+    
+    <div id="hud">
+      <div class="row"><span class="label">位置</span><span class="val">X:<span id="px">0.0</span> Z:<span id="pz">0.0</span></span></div>
+      <div class="row"><span class="label">格座標</span><span class="val">(<span id="gx">0</span>, <span id="gz">0</span>)</span></div>
+      <div class="row"><span class="label">方向</span><span class="val"><span id="pd">0°</span> <span id="pdn">→東</span></span></div>
+      <div class="row prog-only"><span class="label">距終點</span><span class="val"><span id="pdist">--</span> 格</span></div>
+      <div class="row"><span class="label">狀態</span><span id="ps" class="status">待機</span></div>
+      <div class="extras prog-only" id="extrasInfo" style="display:none"></div>
+      <div class="fail prog-only" id="failInfo" style="display:none">失敗次數:<span id="failNum">0</span></div>
+    </div>
+    
+    <div id="levelPanel">
+      <div id="lvHeader" onclick="togglePanel()">
+        <span class="lv-title">📘 第 <span id="lvNum">1</span> 關:<span id="lvName">--</span></span>
+        <button id="lvToggle" title="收起/展開">▼</button>
+      </div>
+      <div id="lvBody">
+        <div class="lv-desc" id="lvDesc">--</div>
+        <div class="lv-goal">🎯 <span id="lvGoal">--</span></div>
+        <select id="lvSelect" onchange="loadLevel(parseInt(this.value))"></select>
+        <div class="lv-nav">
+          <button id="lvPrev" onclick="changeLevel(-1)">◀ 上一關</button>
+          <button id="lvRestart" onclick="loadLevel(currentLevel)">🔄 重玩</button>
+          <button id="lvNext" class="next" onclick="changeLevel(1)">下一關 ▶</button>
+        </div>
+        <div id="hintBox">
+          <div class="hint-title">💡 小提示</div>
+          <div id="hintText">--</div>
+        </div>
+        <button id="ansBtn" onclick="askShowAnswer()">📖 顯示參考答案</button>
+      </div>
+    </div>
+    
+    <div id="minimap">
+      <div class="mm-title">小地圖(北↑)</div>
+      <canvas id="mmCanvas" width="180" height="135"></canvas>
+    </div>
+    
+    <div id="gameHud">
+      <div class="game-stat-group">
+        <div class="game-stat">
+          <div class="stat-label">SCORE</div>
+          <div class="stat-value" id="gScore">0</div>
+        </div>
+        <div class="game-stat stage">
+          <div class="stat-label">STAGE</div>
+          <div class="stat-value" id="gStage">CYBER NIGHT</div>
+        </div>
+        <div class="game-stat combo" id="gComboBox">
+          <div class="stat-label">COMBO</div>
+          <div class="stat-value" id="gCombo">×0</div>
+        </div>
+      </div>
+      <div class="game-stat-group">
+        <div class="game-stat speed">
+          <div class="stat-label">SPEED</div>
+          <div class="stat-value" id="gSpeed">1.0×</div>
+        </div>
+        <div class="game-stat lives">
+          <div class="stat-label">LIVES</div>
+          <div class="stat-value" id="gLives">❤❤❤</div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="crosshair">
+      <div class="ch-ring"></div>
+      <div class="ch-dot"></div>
+      <div class="ch-line t"></div>
+      <div class="ch-line b"></div>
+      <div class="ch-line l"></div>
+      <div class="ch-line r"></div>
+    </div>
+    
+    <div id="gameInstructions">
+      ⌨️ <b>WASD/方向鍵</b> 移動 &nbsp;·&nbsp; <b>Shift</b> 加速衝刺 &nbsp;·&nbsp; 🖱️ <b>左鍵</b> 射擊 <span class="red">紅球</span> &nbsp;·&nbsp; 🟡 撞金幣 &nbsp;·&nbsp; ✨ 吃發光道具
+    </div>
+
+    <div id="powerupBar"></div>
+    <div id="damageFlash"></div>
+    <div id="stageFlash"></div>
+    <div id="comboPopup"></div>
+    
+    <div id="stageBanner">
+      <div class="stage-label">STAGE <span id="sbNum">1</span></div>
+      <div class="stage-name" id="sbName">CYBER NIGHT</div>
+      <div class="stage-line"></div>
+    </div>
+    
+    <div id="countdownOverlay">
+      <div id="countdownText">3</div>
+    </div>
+    
+    <div id="toast"></div>
+    
+    <div id="winModal" class="modal-overlay">
+      <div class="modal-box">
+        <h2 id="winTitle">🎉 過關!</h2>
+        <p id="winMsg">恭喜完成本關!</p>
+        <div class="modal-btns">
+          <button class="stay-btn" onclick="closeModal('winModal')">留在本關</button>
+          <button class="next-btn" id="winNext" onclick="goNextFromModal()">下一關 ▶</button>
+        </div>
+      </div>
+    </div>
+    
+    <div id="ansModal" class="modal-overlay">
+      <div class="modal-box hint">
+        <h2>📖 顯示參考答案?</h2>
+        <p>你已經嘗試超過 10 次了,要載入參考答案嗎?</p>
+        <div class="modal-btns">
+          <button class="stay-btn" onclick="closeModal('ansModal')">再試一次</button>
+          <button class="confirm-btn" onclick="applyAnswer()">載入答案</button>
+        </div>
+      </div>
+    </div>
+    
+    <div id="gameOverModal" class="modal-overlay">
+      <div class="modal-box gameover">
+        <h2>💥 GAME OVER</h2>
+        <p>你的無人機被摧毀了!別氣餒,再挑戰一次吧 🚀</p>
+        <div class="gameover-stats">
+          <div class="gs-item">
+            <div class="gs-label">FINAL SCORE</div>
+            <div class="gs-value highlight" id="goScore">0</div>
+          </div>
+          <div class="gs-item">
+            <div class="gs-label">MAX STAGE</div>
+            <div class="gs-value" id="goStage">1</div>
+          </div>
+          <div class="gs-item">
+            <div class="gs-label">MAX COMBO</div>
+            <div class="gs-value" id="goMaxCombo">0</div>
+          </div>
+          <div class="gs-item">
+            <div class="gs-label">ACCURACY</div>
+            <div class="gs-value" id="goAccuracy">0%</div>
+          </div>
+        </div>
+        <div class="modal-btns">
+          <button class="stay-btn" onclick="backToMenu()">返回選單</button>
+          <button class="restart-btn" onclick="restartEndlessGame()">🔄 再來一次</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="divider" title="拖曳調整寬度"></div>
+  
+  <div id="blocksArea">
+    <div id="blocklyHeader">
+      <div class="title">🧩 積木編程</div>
+      <div class="actions">
+        <button class="btn-run" id="btnRun" onclick="runProgram()">▶ 執行</button>
+        <button class="btn-stop" id="btnStop" onclick="stopProgram()" disabled>⏹ 停止</button>
+        <button class="btn-reset" onclick="resetAll()">🔄 重置</button>
+        <button class="btn-clear" onclick="clearBlocks()">🗑️ 清空</button>
+      </div>
+    </div>
+    <div id="blocklyDiv"></div>
+  </div>
+</div>
+
+<xml id="toolbox" style="display: none">
+  <category name="▶ 事件" colour="#FFBF00">
+    <block type="event_start"></block>
+  </category>
+  <category name="⚡ 動作" colour="#4CBF56">
+    <block type="action_takeoff"></block>
+    <block type="action_land"></block>
+    <block type="action_wait"><field name="MS">500</field></block>
+  </category>
+  <category name="🎯 移動" colour="#4C97FF">
+    <block type="move_forward"><field name="STEPS">1</field></block>
+    <block type="move_backward"><field name="STEPS">1</field></block>
+    <block type="turn_left"></block>
+    <block type="turn_right"></block>
+  </category>
+  <category name="🔁 控制" colour="#FFAB19">
+    <block type="control_repeat"><field name="TIMES">4</field></block>
+    <block type="control_repeat_forever"></block>
+    <block type="control_repeat_until_target"></block>
+    <block type="control_if_obstacle"></block>
+    <block type="control_if"></block>
+  </category>
+  <category name="📡 感測" colour="#5CB1D6">
+    <block type="sense_distance"></block>
+    <block type="sense_at_target"></block>
+    <block type="sense_obstacle_ahead"></block>
+    <block type="sense_all_collected"></block>
+  </category>
+</xml>
+
+<script src="js/mode.js"</script>
+<script src="js/blockly-blocks.js"</script>
+<script src="js/levels.js"</script>
+<script src="js/obstacles.js"</script>
+<script src="js/interpreter.js"</script>
+<script src="js/scene.js"</script>
+<script src="js/audio.js"</script>
+<script src="js/freeflight.js"</script>
+<script src="js/blockly-init.js"</script>
+</body>
+</html>
