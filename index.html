@@ -3285,7 +3285,7 @@ function handleBuilderClick(gx, gz) {
   } else if (builderTool === 'target') {
     builderTarget = { gx, gz };
     rebuildBuilderTarget();
-  } else if (builderTool === 'vase' || builderTool === 'plant') {
+  } else if (builderTool === 'vase' || builderTool === 'plant' || builderTool === 'tree' || builderTool === 'rock' || builderTool === 'crate' || builderTool === 'electricFence' || builderTool === 'laserBeam' || builderTool === 'windZone') {
     placeObstacle(gx, gz, builderTool);
   } else if (builderTool === 'checkpoint') {
     placeCheckpoint(gx, gz);
