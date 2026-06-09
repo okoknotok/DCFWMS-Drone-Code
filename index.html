@@ -584,6 +584,8 @@ function hideBuilderUI() {
 }
 
 function setupProgrammingMode() {
+  // Clean up builder mode if switching directly
+  if (builderActive) teardownBuilderMode();
   document.body.classList.remove('freeflight-mode', 'builder-mode');
   hideBuilderUI();
   document.getElementById('blocksArea').style.display = 'flex';
@@ -612,6 +614,8 @@ function setupProgrammingMode() {
 }
 
 function setupFreeflightMode() {
+  // Clean up builder mode if switching directly
+  if (builderActive) teardownBuilderMode();
   document.body.classList.add('freeflight-mode');
   document.body.classList.remove('builder-mode');
   hideBuilderUI();
@@ -3207,6 +3211,13 @@ function teardownBuilderMode() {
   builderActive = false;
   hideBuilderUI();
   builderClearMeshes();
+  // Clear builder data arrays
+  builderObstacles = [];
+  builderCheckpoints = [];
+  builderTreasures = [];
+  builderStart = { gx: 0, gz: 0, dir: 0 };
+  builderTarget = { gx: 4, gz: -3 };
+  builderCheckpointIdx = 0;
   // Clear builder-placed objects from scene
   rebuildObstacles([]);
   rebuildCheckpoints([]);
@@ -3506,7 +3517,16 @@ function rebuildBuilderTarget() {
 }
 
 function builderClearMeshes() {
-  builderMeshes.forEach(m => m.dispose());
+  builderMeshes.forEach(m => {
+    if (m.getChildMeshes) {
+      m.getChildMeshes().forEach(c => {
+        if (c.material && c.material.diffuseTexture) { try { c.material.diffuseTexture.dispose(); } catch(e) {} }
+        if (c.material) { try { c.material.dispose(); } catch(e) {} }
+        c.dispose();
+      });
+    }
+    m.dispose();
+  });
   builderMeshes = [];
 }
 
